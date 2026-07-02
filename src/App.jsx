@@ -34,9 +34,20 @@ function App() {
     setLoading(false);
 
     if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/service-worker.js').catch(err => {
-        console.log('Service worker registration failed:', err);
-      });
+      // Unregister any existing service workers to avoid serving stale cached builds
+      // (Netlify + SPA builds sometimes leave old service workers active).
+      try {
+        navigator.serviceWorker.getRegistrations().then((regs) => {
+          regs.forEach((reg) => {
+            reg.unregister().catch(() => {});
+          });
+        }).catch(() => {});
+      } catch (err) {
+        // ignore
+      }
+      // Do not register a new service worker by default. If you want to enable
+      // an offline service worker in the future, add an explicit opt-in flag
+      // or a separate registration flow.
     }
   }, []);
 
