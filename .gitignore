@@ -1,0 +1,30 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Node modules
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Build outputs
+build/
+dist/
+*.tgz
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# PHP
+composer.lock
+
+# Local uploads
+api/uploads/

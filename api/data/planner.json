@@ -1,0 +1,18 @@
+{
+    "1": {
+        "tasks": [],
+        "plans": [
+            {
+                "id": "1782825706142",
+                "emoji": "📅",
+                "title": "Staycation",
+                "start_date": "2026-07-28",
+                "end_date": "2026-07-28",
+                "memo": "love each other",
+                "checklist": [
+                    "eat each other"
+                ]
+            }
+        ]
+    }
+}

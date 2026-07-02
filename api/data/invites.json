@@ -1,0 +1,26 @@
+[
+    {
+        "token": "937258fe43a99d9bf554b5ef3489667b",
+        "from_user_id": 1,
+        "to_email": "decastrokimfaith@gmail.com",
+        "created_at": 1782828914,
+        "expires_at": 1783088114,
+        "used": false
+    },
+    {
+        "token": "a8819118d5fc4de3ebdd30a1edff3833",
+        "from_user_id": 1,
+        "to_email": "decastrokimfaith@gmail.com",
+        "created_at": 1782829519,
+        "expires_at": 1783088719,
+        "used": false
+    },
+    {
+        "token": "7902b9750d0866fe22be52a2b342c115",
+        "from_user_id": 1,
+        "to_email": "decastrokimfaith@gmail.com",
+        "created_at": 1782829845,
+        "expires_at": 1783089045,
+        "used": true
+    }
+]

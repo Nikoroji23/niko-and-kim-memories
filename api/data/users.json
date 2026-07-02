@@ -1,0 +1,18 @@
+[
+    {
+        "id": 1,
+        "name": "Niko",
+        "email": "niko@example.com",
+        "password": "$2y$10$abcdefghijklmnopqrstuvwxyz123456",
+        "token": "niko-token-123",
+        "partner_id": 1
+    },
+    {
+        "id": 2,
+        "name": "Kim",
+        "email": "kim@example.com",
+        "password": "$2y$10$abcdefghijklmnopqrstuvwxyz123456",
+        "token": "kim-token-456",
+        "partner_id": null
+    }
+]

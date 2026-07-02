@@ -1,0 +1,338 @@
+/* Sanrio Theme Styles */
+
+@import url('https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;700&family=Fredoka:wght@400;500;600;700&display=swap');
+
+:root {
+  /* Sanrio Colors */
+  --sanrio-pink: #ff69b4;
+  --sanrio-light-pink: #ffb6d9;
+  --sanrio-pastel-pink: #ffc0d9;
+  --sanrio-white: #ffffff;
+  --sanrio-cream: #fffaf0;
+  --sanrio-purple: #d8bfd8;
+  --sanrio-light-purple: #e6ccee;
+  --sanrio-cyan: #b0f0f0;
+  --sanrio-yellow: #fffacd;
+  --sanrio-dark: #2c2c2c;
+  --sanrio-gray: #a9a9a9;
+}
+
+/* Sanrio-themed button */
+.sanrio-button {
+  background: linear-gradient(135deg, #ff69b4, #ffb6d9);
+  color: white;
+  font-weight: 700;
+  border: 2px solid #ff1493;
+  border-radius: 20px;
+  padding: 10px 20px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(255, 105, 180, 0.3);
+}
+
+.sanrio-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(255, 105, 180, 0.4);
+  background: linear-gradient(135deg, #ff1493, #ff69b4);
+}
+
+.sanrio-button:active {
+  transform: translateY(0);
+}
+
+/* Sanrio card with character border */
+.sanrio-card {
+  position: relative;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(255, 250, 240, 0.95));
+  border: 3px solid #ffb6d9;
+  border-radius: 24px;
+  padding: 1.5rem;
+  box-shadow: 0 12px 24px rgba(255, 105, 180, 0.15);
+  overflow: hidden;
+}
+
+.sanrio-card:before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  right: -1px;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #ff69b4, transparent);
+  border-radius: 24px 24px 0 0;
+}
+
+.sanrio-card:after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: -1px;
+  right: -1px;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #ff69b4, transparent);
+  border-radius: 0 0 24px 24px;
+}
+
+.sanrio-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 16px 32px rgba(255, 105, 180, 0.25);
+  border-color: #ff1493;
+}
+
+/* Sanrio text styles */
+.sanrio-title {
+  font-family: 'Fredoka', 'Quicksand', sans-serif;
+  font-weight: 700;
+  background: linear-gradient(135deg, #ff69b4, #d8bfd8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: 0.5px;
+}
+
+.sanrio-subtitle {
+  color: #a9a9a9;
+  font-family: 'Comfortaa', 'Quicksand', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+/* Sanrio input fields */
+.sanrio-input {
+  background: linear-gradient(135deg, rgba(255, 250, 240, 0.8), rgba(255, 240, 245, 0.8));
+  border: 2px solid #ffb6d9;
+  border-radius: 16px;
+  padding: 10px 15px;
+  font-family: 'Quicksand', sans-serif;
+  transition: all 0.3s ease;
+}
+
+.sanrio-input:focus {
+  outline: none;
+  border-color: #ff69b4;
+  box-shadow: 0 0 0 3px rgba(255, 105, 180, 0.1);
+  background: rgba(255, 255, 255, 0.95);
+}
+
+/* Sanrio badge */
+.sanrio-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #ff69b4, #ffb6d9);
+  color: white;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 4px 8px rgba(255, 105, 180, 0.2);
+}
+
+/* Sanrio decoration sparkles */
+.sanrio-sparkle {
+  display: inline-block;
+  animation: sparkle 1.5s ease-in-out infinite;
+}
+
+@keyframes sparkle {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+/* Sanrio character borders */
+.character-border {
+  position: relative;
+  border: 3px dashed #ffb6d9;
+  border-radius: 20px;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(255, 240, 245, 0.9));
+}
+
+.character-border::before,
+.character-border::after {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background: #ff69b4;
+  border-radius: 50%;
+  opacity: 0.3;
+}
+
+.character-border::before {
+  top: -10px;
+  left: 20px;
+}
+
+.character-border::after {
+  bottom: -10px;
+  right: 20px;
+}
+
+/* Sanrio animation - floating */
+@keyframes sanrio-float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+.sanrio-float {
+  animation: sanrio-float 3s ease-in-out infinite;
+}
+
+/* Sanrio animation - gentle glow */
+@keyframes sanrio-glow {
+  0%, 100% { box-shadow: 0 0 10px rgba(255, 105, 180, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(255, 105, 180, 0.6); }
+}
+
+.sanrio-glow {
+  animation: sanrio-glow 2s ease-in-out infinite;
+}
+
+/* Sanrio gradient background */
+.sanrio-bg {
+  background: linear-gradient(135deg, #fff5f8 0%, #fff0f5 25%, #f8f0ff 50%, #f0f8ff 75%, #fffaf0 100%);
+  background-size: 400% 400%;
+  animation: sanrio-bg-shift 15s ease infinite;
+}
+
+@keyframes sanrio-bg-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Sanrio letter theme specific */
+.sanrio-letter {
+  position: relative;
+  border-radius: 24px;
+  overflow: hidden;
+}
+
+.sanrio-letter::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, transparent, #ff69b4, transparent);
+  animation: flow 3s linear infinite;
+}
+
+@keyframes flow {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Sanrio responsive adjustments */
+@media (max-width: 768px) {
+  .sanrio-card {
+    padding: 1rem;
+  }
+  
+  .sanrio-button {
+    padding: 8px 16px;
+    font-size: 0.95rem;
+  }
+  
+  .character-border {
+    padding: 1rem;
+  }
+}
+
+/* Sanrio accessibility - ensure contrast */
+.sanrio-text-dark {
+  color: #2c2c2c;
+}
+
+.sanrio-text-light {
+  color: #ffffff;
+}
+
+/* Sanrio decorative elements */
+.sanrio-decoration {
+  opacity: 0.15;
+  transition: opacity 0.3s ease;
+}
+
+.sanrio-decoration:hover {
+  opacity: 0.3;
+}
+
+/* Character-specific colors */
+.hello-kitty-theme {
+  --primary: #ff0099;
+  --secondary: #ffe4f0;
+}
+
+.cinnamoroll-theme {
+  --primary: #ffd700;
+  --secondary: #fffacd;
+}
+
+.my-melody-theme {
+  --primary: #ffb6d9;
+  --secondary: #fff0f5;
+}
+
+.kuromi-theme {
+  --primary: #8b0000;
+  --secondary: #f0f0f0;
+}
+
+.badtz-maru-theme {
+  --primary: #696969;
+  --secondary: #fffacd;
+}
+
+/* Cute corners styling */
+.cute-corners {
+  border-radius: 24px;
+  position: relative;
+}
+
+.cute-corners::before,
+.cute-corners::after {
+  content: '';
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  background: radial-gradient(circle at 30% 30%, rgba(255, 105, 180, 0.4), transparent);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.cute-corners::before {
+  top: -12px;
+  left: -12px;
+}
+
+.cute-corners::after {
+  bottom: -12px;
+  right: -12px;
+}
+
+/* Sanrio shadows */
+.sanrio-shadow {
+  box-shadow: 
+    0 4px 8px rgba(255, 105, 180, 0.1),
+    0 8px 16px rgba(255, 105, 180, 0.08);
+}
+
+.sanrio-shadow-lg {
+  box-shadow: 
+    0 8px 16px rgba(255, 105, 180, 0.15),
+    0 16px 32px rgba(255, 105, 180, 0.12);
+}
+
+/* Sanrio focus styles */
+.sanrio-focus:focus {
+  outline: 2px solid #ff69b4;
+  outline-offset: 2px;
+}
+
+.sanrio-focus:focus-visible {
+  outline: 2px solid #ff69b4;
+  outline-offset: 2px;
+}
