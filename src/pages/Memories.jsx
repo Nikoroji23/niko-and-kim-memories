@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { getMemories, saveMemory } from '../utils/localDB';
+import { uploadToBucket, insertRow, subscribeToTable } from '../utils/supabaseClient';
 
 function Memories({ user }) {
   const [memories, setMemories] = useState([]);
@@ -48,6 +49,23 @@ function Memories({ user }) {
   useEffect(() => {
     if (user?.id) {
       fetchMemories();
+      let unsubscribe = null;
+      try {
+        unsubscribe = subscribeToTable('memories', (payload) => {
+          const row = payload?.new || payload?.record || payload;
+          if (!row) return;
+          const mapped = {
+            ...row,
+            photo_url: row.media_url || row.photo_url || null,
+          };
+          setMemories((prev) => [{ ...mapped }, ...prev]);
+        });
+      } catch (err) {
+        // Supabase not configured, continue using local DB
+      }
+      return () => {
+        if (unsubscribe) unsubscribe();
+      };
     }
   }, [user?.id]);
 
@@ -62,6 +80,23 @@ function Memories({ user }) {
       const saved = await saveMemory(user.id, { title: title.trim(), emoji, category, photoFile: photo, createdBy: { id: user.id, name: user.name } });
       const withUrl = { ...saved, photo_url: saved.photo_blob ? URL.createObjectURL(saved.photo_blob) : null };
       setMemories((prev) => [withUrl, ...prev]);
+      // Attempt to upload photo to Supabase Storage and insert a row for cross-device sync
+      try {
+        let mediaUrl = null;
+        if (photo) {
+          mediaUrl = await uploadToBucket('media', photo, `${user.id}/${Date.now()}-${photo.name}`);
+        }
+        await insertRow('memories', {
+          title: title.trim(),
+          emoji,
+          category,
+          media_url: mediaUrl,
+          created_by: { id: user.id, name: user.name },
+        });
+      } catch (err) {
+        // ignore supabase errors — app continues to work offline/local
+        // console.warn('Supabase memory upload/insert failed', err);
+      }
       setTitle('');
       setPhoto(null);
     } catch (err) {

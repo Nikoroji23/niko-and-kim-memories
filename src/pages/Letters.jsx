@@ -2,6 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { getLetters, saveLetter, deleteLetter } from '../utils/localDB';
+import { insertRow, subscribeToTable } from '../utils/supabaseClient';
+
+// Quick partner email mapping. Update these if you use different accounts.
+const NIKO_EMAIL = 'alfonsoaninias0527@gmail.com';
+const KIM_EMAIL = 'decastrokimfaith@gmail.com';
 import { SanrioCornerDecoration } from '../components/SanrioDecorations';
 
 // Using client-side IndexedDB storage; no server API
@@ -30,8 +35,13 @@ function Letters({ user }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importToken, setImportToken] = useState('');
+  const [qrPreview, setQrPreview] = useState('');
   const [partnerId, setPartnerId] = useState(null);
   const [sendToPartner, setSendToPartner] = useState(false);
+  const [partnerEmail, setPartnerEmail] = useState('');
+  const [editingPartnerEmail, setEditingPartnerEmail] = useState(false);
   const [activeTab, setActiveTab] = useState('sent');
 
   const fetchLetters = async () => {
@@ -50,12 +60,100 @@ function Letters({ user }) {
   useEffect(() => {
     if (user?.id) {
       fetchLetters();
-      // Poll for new letters every 3 seconds
+      // keep local fetch, and also subscribe to Supabase realtime inserts
       const interval = setInterval(fetchLetters, 3000);
-      return () => clearInterval(interval);
+      let unsubscribe = null;
+      try {
+        unsubscribe = subscribeToTable('letters', (payload) => {
+          const row = payload?.new || payload?.record || payload;
+          if (!row) return;
+          // If this row is addressed to this user, add to received
+          if (String(row.sent_to_id) === String(user.id)) {
+            setReceivedLetters((prev) => [{ ...row }, ...prev]);
+          }
+          // If this row was created by this user, add to sent
+          if (String(row.created_by?.id) === String(user.id)) {
+            setSentLetters((prev) => [{ ...row }, ...prev]);
+          }
+        });
+      } catch (err) {
+        // Supabase not configured or subscribe failed — continue with local polling
+        // console.warn('Supabase subscribe failed', err);
+      }
+
+      return () => {
+        clearInterval(interval);
+        if (unsubscribe) unsubscribe();
+      };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('partnerEmail');
+      if (stored) setPartnerEmail(stored);
+    } catch (err) {
+      // ignore
+    }
+  }, []);
+
+  const exportTokenForLetter = async (letter) => {
+    try {
+      const payload = JSON.stringify(letter);
+      const token = btoa(unescape(encodeURIComponent(payload)));
+      await navigator.clipboard.writeText(token);
+      setSuccess('Share token copied to clipboard!');
+      // show QR preview
+      setQrPreview(`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(token)}`);
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      console.error('Export failed', err);
+      setError('Unable to create share token.');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+  const handleImportToken = async () => {
+    setError('');
+    setSuccess('');
+    if (!importToken.trim()) {
+      setError('Paste a valid token or scan QR first.');
+      return;
+    }
+    try {
+      const decoded = decodeURIComponent(escape(atob(importToken.trim())));
+      const parsed = JSON.parse(decoded);
+      // avoid duplicates by subject + created_at
+      const existing = sentLetters.find((l) => l.subject === parsed.subject && l.created_at === parsed.created_at);
+      if (existing) {
+        setError('This letter is already in your saved letters.');
+        return;
+      }
+      // Save as a received letter (keep original created_by)
+      const createdBy = parsed.created_by || { id: parsed.user_id, name: parsed.created_by?.name || 'Partner' };
+      const saved = await saveLetter(user.id, {
+        theme: parsed.theme,
+        type: parsed.type,
+        subject: parsed.subject,
+        body: parsed.body,
+        send_to_partner: parsed.send_to_partner || 0,
+      }, createdBy);
+      if (createdBy.id !== user.id) {
+        setReceivedLetters((prev) => [{ ...saved }, ...prev]);
+      } else {
+        setSentLetters((prev) => [{ ...saved }, ...prev]);
+      }
+      setImportModalOpen(false);
+      setImportToken('');
+      setQrPreview('');
+      setSuccess('Imported letter from partner!');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      console.error('Import failed', err);
+      setError('Invalid token.');
+    }
+  };
 
   const handleSaveLetter = async (e) => {
     e.preventDefault();
@@ -83,6 +181,31 @@ function Letters({ user }) {
       };
       const saved = await saveLetter(user.id, payload, { id: user.id, name: user.name });
       setSentLetters((prev) => [{ ...saved }, ...prev]);
+      // Try to mirror into Supabase for cross-device sync (graceful fallback)
+      try {
+        await insertRow('letters', {
+          theme: payload.theme,
+          type: payload.type,
+          subject: payload.subject,
+          body: payload.body,
+          send_to_partner: payload.send_to_partner,
+          sent_to_id: sendToPartner ? partnerId || null : null,
+          created_by: { id: user.id, name: user.name },
+        });
+      } catch (err) {
+        // ignore supabase errors — local save still works
+        // console.warn('Supabase insert failed', err);
+      }
+      // Optionally open default mail client to notify partner when sending
+      if (sendToPartner) {
+        try {
+          const partner = partnerEmail || ((user?.email && user.email === NIKO_EMAIL) || user?.id === 'niko' ? KIM_EMAIL : NIKO_EMAIL);
+          const mailto = `mailto:${partner}?subject=${encodeURIComponent(subject.trim())}&body=${encodeURIComponent(body.trim())}`;
+          window.open(mailto, '_blank');
+        } catch (err) {
+          // ignore mailto errors
+        }
+      }
       setSubject('');
       setBody('');
       setSendToPartner(false);
@@ -116,13 +239,22 @@ function Letters({ user }) {
           <Link to="/dashboard" className="text-pink-600 font-bold hover:underline text-lg mb-4 inline-block">
             ← Back to Dashboard
           </Link>
-          <div className="text-center">
-            <motion.div className="text-6xl mb-3 inline-block" animate={{ scale: [1, 1.1, 1] }} transition={{ duration: 2, repeat: Infinity }}>
-              💌
-            </motion.div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent mb-2">
-              Love Letters
-            </h1>
+                        <div className="flex flex-col gap-2">
+                          <motion.button
+                            whileHover={{ scale: 1.03 }}
+                            onClick={() => exportTokenForLetter(letter)}
+                            className="rounded-2xl bg-white px-3 py-2 text-sm font-bold text-pink-600 border-2 border-pink-200 hover:bg-pink-50 hover:border-pink-400 transition flex-shrink-0"
+                          >
+                            📤 Share
+                          </motion.button>
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            onClick={() => handleDelete(letter.id)}
+                            className="rounded-2xl bg-white px-3 py-2 text-sm font-bold text-pink-600 border-2 border-pink-200 hover:bg-pink-50 hover:border-pink-400 transition flex-shrink-0"
+                          >
+                            🗑️ Delete
+                          </motion.button>
+                        </div>
             <p className="text-gray-600 text-lg">
               {partnerId ? 'Share heartfelt letters with your partner 💝' : 'Connect with a partner to share letters 💝'}
             </p>
@@ -150,6 +282,33 @@ function Letters({ user }) {
             ))}
           </div>
         </motion.div>
+
+        <div className="flex items-center gap-3 mt-4">
+          <button
+            type="button"
+            onClick={() => setImportModalOpen(true)}
+            className="rounded-2xl bg-white border-2 border-pink-200 px-4 py-2 text-pink-600 font-bold hover:bg-pink-50 transition"
+          >
+            📥 Import from Partner
+          </button>
+          <p className="text-sm text-gray-500">Or have your partner tap “Share” on a letter to copy a token/QR.</p>
+          <div className="ml-4 flex items-center gap-2">
+            <input
+              type="email"
+              value={partnerEmail}
+              onChange={(e) => setPartnerEmail(e.target.value)}
+              placeholder="Partner email (optional)"
+              className="rounded-2xl border-2 border-pink-200 px-3 py-2 bg-white"
+            />
+            <button
+              type="button"
+              onClick={() => { try { localStorage.setItem('partnerEmail', partnerEmail); setEditingPartnerEmail(false); } catch (e) {} }}
+              className="rounded-2xl bg-pink-600 text-white px-3 py-2 font-semibold"
+            >
+              Save
+            </button>
+          </div>
+        </div>
 
         <motion.div
           className="bg-white rounded-3xl shadow-lg p-8 border-3 border-purple-200 mb-8"
@@ -320,6 +479,33 @@ function Letters({ user }) {
             <SanrioCornerDecoration position="bottom-left" size="md" />
             <SanrioCornerDecoration position="bottom-right" size="md" />
           </motion.div>
+        )}
+
+        {/* Import Modal */}
+        {importModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="w-full max-w-2xl bg-white rounded-2xl p-6 shadow-2xl">
+              <h3 className="text-xl font-bold mb-3">Import Letter from Partner</h3>
+              <p className="text-sm text-gray-600 mb-3">Paste the share token you received (or scan the QR on your partner's device).</p>
+              <textarea
+                value={importToken}
+                onChange={(e) => setImportToken(e.target.value)}
+                rows={6}
+                className="w-full rounded-md border px-3 py-2 mb-3"
+                placeholder="Paste token here"
+              />
+              {qrPreview && (
+                <div className="mb-3">
+                  <p className="text-sm text-gray-600 mb-2">QR Preview (optional):</p>
+                  <img src={qrPreview} alt="qr preview" className="h-40 w-40" />
+                </div>
+              )}
+              <div className="flex items-center gap-3 justify-end">
+                <button onClick={() => { setImportModalOpen(false); setImportToken(''); setQrPreview(''); }} className="px-4 py-2 rounded-2xl border">Cancel</button>
+                <button onClick={handleImportToken} className="px-4 py-2 rounded-2xl bg-pink-600 text-white">Import</button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Received Letters Tab */}

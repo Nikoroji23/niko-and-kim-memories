@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { getPlanner, addPlan as addPlanToDB, updatePlanner } from '../utils/localDB';
+import { insertRow, subscribeToTable } from '../utils/supabaseClient';
 import {
   format,
   addMonths,
@@ -110,6 +111,25 @@ function Planner({ user }) {
   useEffect(() => {
     if (user?.id) {
       fetchPlanner();
+      let unsubscribe = null;
+      try {
+        unsubscribe = subscribeToTable('plans', (payload) => {
+          const row = payload?.new || payload?.record || payload;
+          if (!row) return;
+          // Ensure planner exists
+          setPlanner((prev) => {
+            const existing = (prev.plans || []).find((p) => p.created_at === row.created_at && p.title === row.title);
+            if (existing) return prev;
+            const updated = { ...(prev || { tasks: [], plans: [] }), plans: [row, ...(prev.plans || [])] };
+            return updated;
+          });
+        });
+      } catch (err) {
+        // Supabase not configured
+      }
+      return () => {
+        if (unsubscribe) unsubscribe();
+      };
     }
   }, [user?.id]);
 
@@ -164,9 +184,20 @@ function Planner({ user }) {
         const updated = { ...planner, plans: [newPlan, ...(planner.plans || [])] };
         await updatePlanner(updated);
         setPlanner(updated);
+        try {
+          await insertRow('plans', newPlan);
+        } catch (err) {
+          // ignore supabase errors
+        }
       } else {
         const record = await addPlanToDB({ tasks: payload.tasks, plans: [{ title: payload.title, start_date: payload.start_date, end_date: payload.end_date, memo: payload.memo, checklist: payload.checklist, created_by: { id: user.id, name: user.name } }] }, { id: user.id, name: user.name });
         setPlanner(record);
+        try {
+          const planRow = record.plans && record.plans[0] ? record.plans[0] : null;
+          if (planRow) await insertRow('plans', planRow);
+        } catch (err) {
+          // ignore
+        }
       }
       setSuccess(`✅ Trip added!`);
       setNewTitle('');
