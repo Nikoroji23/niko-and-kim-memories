@@ -3,11 +3,11 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { getLetters, saveLetter, deleteLetter } from '../utils/localDB';
 import { insertRow, subscribeToTable } from '../utils/supabaseClient';
+import { SanrioCornerDecoration } from '../components/SanrioDecorations';
 
 // Quick partner email mapping. Update these if you use different accounts.
 const NIKO_EMAIL = 'alfonsoaninias0527@gmail.com';
 const KIM_EMAIL = 'decastrokimfaith@gmail.com';
-import { SanrioCornerDecoration } from '../components/SanrioDecorations';
 
 // Using client-side IndexedDB storage; no server API
 
@@ -239,26 +239,9 @@ function Letters({ user }) {
           <Link to="/dashboard" className="text-pink-600 font-bold hover:underline text-lg mb-4 inline-block">
             ← Back to Dashboard
           </Link>
-                        <div className="flex flex-col gap-2">
-                          <motion.button
-                            whileHover={{ scale: 1.03 }}
-                            onClick={() => exportTokenForLetter(letter)}
-                            className="rounded-2xl bg-white px-3 py-2 text-sm font-bold text-pink-600 border-2 border-pink-200 hover:bg-pink-50 hover:border-pink-400 transition flex-shrink-0"
-                          >
-                            📤 Share
-                          </motion.button>
-                          <motion.button
-                            whileHover={{ scale: 1.1 }}
-                            onClick={() => handleDelete(letter.id)}
-                            className="rounded-2xl bg-white px-3 py-2 text-sm font-bold text-pink-600 border-2 border-pink-200 hover:bg-pink-50 hover:border-pink-400 transition flex-shrink-0"
-                          >
-                            🗑️ Delete
-                          </motion.button>
-                        </div>
-            <p className="text-gray-600 text-lg">
-              {partnerId ? 'Share heartfelt letters with your partner 💝' : 'Connect with a partner to share letters 💝'}
-            </p>
-          </div>
+          <p className="text-gray-600 text-lg">
+            {partnerId ? 'Share heartfelt letters with your partner 💝' : 'Connect with a partner to share letters 💝'}
+          </p>
         </motion.div>
 
         <motion.div
