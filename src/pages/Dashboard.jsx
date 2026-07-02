@@ -1,11 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getMemories, getLetters, getPlanner, getMessages } from '../utils/localDB';
-import { FiLogOut } from 'react-icons/fi';
+import { getMemories, getPlanner, getMessages } from '../utils/localDB';
 import { motion } from 'framer-motion';
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || '';
-const API_URL = `${API_BASE_URL}/api/dashboard.php`;
 
 function Dashboard({ user, onSwitchUser }) {
   const [dashboardData, setDashboardData] = useState({
@@ -27,14 +23,13 @@ function Dashboard({ user, onSwitchUser }) {
 
   const feelings = ['happy 😊', 'loved 💖', 'grateful 🙏', 'excited 🎉', 'peaceful 🌸'];
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     if (!user?.id) return;
     setLoading(true);
     try {
       const mems = await getMemories(user.id);
-      const letters = await getLetters(user.id);
       const msgs = await getMessages(user.id);
-      const plannerList = await getPlanner();
+      await getPlanner();
 
       const recent_memory = mems && mems.length ? mems[mems.length - 1] : {
         title: 'No memories yet',
@@ -57,11 +52,11 @@ function Dashboard({ user, onSwitchUser }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
 
   useEffect(() => {
     fetchDashboardData();
-  }, [user?.id]);
+  }, [fetchDashboardData]);
 
   // user switching handled via `onSwitchUser` passed from App
 

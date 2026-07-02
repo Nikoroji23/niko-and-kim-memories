@@ -1,20 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 // client-side only: store answers in localStorage
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || '';
-const API_URL = `${API_BASE_URL}/api/dashboard.php`;
 
 function DailyQuestion({ user }) {
   const [answer, setAnswer] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [question, setQuestion] = useState({ question_text: 'What made you smile today? 😊' });
+  const question = { question_text: 'What made you smile today? 😊' };
   const [previousAnswers, setPreviousAnswers] = useState([]);
 
-  const fetchQuestion = async () => {
+  const fetchQuestion = useCallback(async () => {
     try {
       // load previous answers from localStorage
       const key = `daily_answers_${user?.id}`;
@@ -23,13 +20,13 @@ function DailyQuestion({ user }) {
     } catch (err) {
       console.error('Failed to fetch question:', err);
     }
-  };
+  }, [user?.id]);
 
   useEffect(() => {
     if (user?.id) {
       fetchQuestion();
     }
-  }, [user?.id]);
+  }, [fetchQuestion, user?.id]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

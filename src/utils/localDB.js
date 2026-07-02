@@ -27,17 +27,6 @@ function openDB() {
   });
 }
 
-async function withStore(storeName, mode, fn) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(storeName, mode);
-    const store = tx.objectStore(storeName);
-    const result = fn(store);
-    tx.oncomplete = () => resolve(result);
-    tx.onerror = () => reject(tx.error || new Error('Transaction error'));
-  });
-}
-
 export async function getMemories(userId) {
   const db = await openDB();
   return new Promise((resolve, reject) => {
@@ -186,7 +175,7 @@ export async function toggleTask(planId, taskId) {
   });
 }
 
-export default {
+const localDB = {
   getMemories,
   saveMemory,
   getLetters,
@@ -194,5 +183,10 @@ export default {
   deleteLetter,
   getPlanner,
   addPlan,
+  getMessages,
+  saveMessage,
+  updatePlanner,
   toggleTask,
 };
+
+export default localDB;

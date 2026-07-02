@@ -41,7 +41,6 @@ function Letters({ user }) {
   const [partnerId, setPartnerId] = useState(null);
   const [sendToPartner, setSendToPartner] = useState(false);
   const [partnerEmail, setPartnerEmail] = useState('');
-  const [editingPartnerEmail, setEditingPartnerEmail] = useState(false);
   const [activeTab, setActiveTab] = useState('sent');
 
   const fetchLetters = async () => {
@@ -97,22 +96,6 @@ function Letters({ user }) {
       // ignore
     }
   }, []);
-
-  const exportTokenForLetter = async (letter) => {
-    try {
-      const payload = JSON.stringify(letter);
-      const token = btoa(unescape(encodeURIComponent(payload)));
-      await navigator.clipboard.writeText(token);
-      setSuccess('Share token copied to clipboard!');
-      // show QR preview
-      setQrPreview(`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(token)}`);
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (err) {
-      console.error('Export failed', err);
-      setError('Unable to create share token.');
-      setTimeout(() => setError(''), 3000);
-    }
-  };
 
   const handleImportToken = async () => {
     setError('');
@@ -284,12 +267,12 @@ function Letters({ user }) {
               className="rounded-2xl border-2 border-pink-200 px-3 py-2 bg-white"
             />
             <button
-              type="button"
-              onClick={() => { try { localStorage.setItem('partnerEmail', partnerEmail); setEditingPartnerEmail(false); } catch (e) {} }}
-              className="rounded-2xl bg-pink-600 text-white px-3 py-2 font-semibold"
-            >
-              Save
-            </button>
+                type="button"
+                onClick={() => { try { localStorage.setItem('partnerEmail', partnerEmail); } catch (e) {} }}
+                className="rounded-2xl bg-pink-600 text-white px-3 py-2 font-semibold"
+              >
+                Save
+              </button>
           </div>
         </div>
 

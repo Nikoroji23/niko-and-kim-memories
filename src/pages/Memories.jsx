@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { getMemories, saveMemory } from '../utils/localDB';
@@ -14,14 +14,14 @@ function Memories({ user }) {
   const [error, setError] = useState('');
   const [selectedMemory, setSelectedMemory] = useState(null);
 
-  const categories = ['Vacations', 'Food Dates', 'Birthdays', 'Holidays', 'Random Moments'];
+  const categories = useMemo(() => ['Vacations', 'Food Dates', 'Birthdays', 'Holidays', 'Random Moments'], []);
 
   const memoryGroups = useMemo(() => {
     const groups = [...new Set(memories.map((memory) => memory.category || 'Uncategorized'))];
     return groups.length ? groups : categories;
-  }, [memories]);
+  }, [memories, categories]);
 
-  const fetchMemories = async () => {
+  const fetchMemories = useCallback(async () => {
     try {
       const list = await getMemories(user.id);
       const mapped = list.map((m) => ({
@@ -32,7 +32,7 @@ function Memories({ user }) {
     } catch (err) {
       console.error(err);
     }
-  };
+  }, [user?.id]);
 
   useEffect(() => {
     if (!photo) {
@@ -67,7 +67,7 @@ function Memories({ user }) {
         if (unsubscribe) unsubscribe();
       };
     }
-  }, [user?.id]);
+  }, [user?.id, fetchMemories]);
 
   const handleAddMemory = async (e) => {
     e.preventDefault();
@@ -182,7 +182,7 @@ function Memories({ user }) {
               <div className="md:col-span-4 rounded-3xl border border-orange-200 bg-white p-4 shadow-sm flex items-center gap-4">
                 <img
                   src={photoPreview}
-                  alt="photo preview"
+                  alt={title || 'Preview'}
                   className="h-20 w-20 rounded-3xl object-cover"
                 />
                 <div>
@@ -258,7 +258,7 @@ function Memories({ user }) {
                           </div>
                           {memory.photo_url ? (
                             <div className="mt-5 rounded-3xl border border-orange-100 overflow-hidden bg-slate-50">
-                              <img src={memory.photo_url} alt={memory.title} className="h-40 w-full object-cover transition duration-200 group-hover:scale-105" />
+                              <img src={memory.photo_url} alt={memory.title || 'Memory'} className="h-40 w-full object-cover transition duration-200 group-hover:scale-105" />
                             </div>
                           ) : (
                             <div className="mt-5 rounded-3xl border border-dashed border-orange-200 bg-orange-50 p-6 text-center text-orange-700">

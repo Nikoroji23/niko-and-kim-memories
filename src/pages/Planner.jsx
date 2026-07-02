@@ -31,12 +31,9 @@ function Planner({ user }) {
   const [newChecklistItems, setNewChecklistItems] = useState([]);
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [error, setError] = useState('');
-  const [planEditError, setPlanEditError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const [editingPlanId, setEditingPlanId] = useState(null);
-  const [editPlanDraft, setEditPlanDraft] = useState(null);
-  const [newEditChecklistItem, setNewEditChecklistItem] = useState('');
+  
 
   useEffect(() => {
     if (newStartDate && newEndDate && newEndDate < newStartDate) {

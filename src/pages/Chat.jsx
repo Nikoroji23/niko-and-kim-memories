@@ -3,9 +3,6 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { getMessages, saveMessage } from '../utils/localDB';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || '';
-const API_URL = `${API_BASE_URL}/api/chat.php`;
-
 function Chat({ user }) {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
