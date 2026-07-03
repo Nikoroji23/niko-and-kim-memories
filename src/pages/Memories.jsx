@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { createMemory, listMemories, subscribeToSharedTable } from '../utils/sharedData';
@@ -13,6 +13,7 @@ function Memories({ user }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedMemory, setSelectedMemory] = useState(null);
+  const fileInputRef = useRef(null);
 
   const categories = useMemo(() => ['Vacations', 'Food Dates', 'Birthdays', 'Holidays', 'Random Moments'], []);
 
@@ -56,6 +57,20 @@ function Memories({ user }) {
   const mediaFor = (memory) => memory.shared_memory_media || [];
   const coverMedia = (memory) => mediaFor(memory)[0];
 
+  const handleFileChange = (event) => {
+    setFiles(Array.from(event.target.files || []));
+  };
+
+  const removeSelectedFile = (fileToRemove) => {
+    setFiles((selectedFiles) => selectedFiles.filter((file) => file !== fileToRemove));
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const clearSelectedFiles = () => {
+    setFiles([]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const handleAddMemory = async (event) => {
     event.preventDefault();
     setError('');
@@ -66,7 +81,7 @@ function Memories({ user }) {
       const saved = await createMemory(user, { title: title.trim(), emoji, category }, files);
       setMemories((prev) => [saved, ...prev]);
       setTitle('');
-      setFiles([]);
+      clearSelectedFiles();
     } catch (err) {
       console.error(err);
       setError('Unable to save memory. Check that the Supabase media bucket and shared tables exist.');
@@ -108,12 +123,30 @@ function Memories({ user }) {
             </select>
             <label className="md:col-span-4 rounded-3xl border-2 border-orange-200 px-4 py-3 bg-orange-50 flex items-center justify-between cursor-pointer text-gray-700">
               <span>{files.length ? `${files.length} file${files.length > 1 ? 's' : ''} selected` : 'Choose photos or videos'}</span>
-              <input type="file" accept="image/*,video/*" multiple onChange={(e) => setFiles(Array.from(e.target.files || []))} className="hidden" />
+              <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple onChange={handleFileChange} className="hidden" />
             </label>
             {previews.length > 0 && (
-              <div className="md:col-span-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 rounded-3xl border border-orange-200 bg-white p-4 shadow-sm">
+              <div className="md:col-span-4 rounded-3xl border border-orange-200 bg-white p-4 shadow-sm">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-slate-700">Selected uploads</p>
+                  <button
+                    type="button"
+                    onClick={clearSelectedFiles}
+                    className="rounded-2xl border border-orange-200 bg-orange-50 px-3 py-2 text-sm font-bold text-orange-700 hover:bg-orange-100"
+                  >
+                    Remove all
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 {previews.map((preview) => (
-                  <div key={preview.url} className="overflow-hidden rounded-2xl border border-orange-100 bg-slate-50">
+                  <div key={preview.url} className="relative overflow-hidden rounded-2xl border border-orange-100 bg-slate-50">
+                    <button
+                      type="button"
+                      onClick={() => removeSelectedFile(preview.file)}
+                      className="absolute right-2 top-2 z-10 rounded-full bg-white/95 px-3 py-1 text-xs font-bold text-red-600 shadow hover:bg-red-50"
+                    >
+                      Remove
+                    </button>
                     {preview.media_type === 'video' ? (
                       <video src={preview.url} className="h-28 w-full object-cover" controls />
                     ) : (
@@ -122,6 +155,7 @@ function Memories({ user }) {
                     <p className="truncate px-2 py-1 text-xs text-slate-600">{preview.file.name}</p>
                   </div>
                 ))}
+                </div>
               </div>
             )}
             <button type="submit" disabled={loading} className="md:col-span-4 rounded-3xl bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold py-3 hover:opacity-95 transition disabled:opacity-60">
