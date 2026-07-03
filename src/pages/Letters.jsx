@@ -1,202 +1,87 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { getLetters, saveLetter, deleteLetter } from '../utils/localDB';
-import { insertRow, subscribeToTable } from '../utils/supabaseClient';
+import { createLetter, deleteLetter, getPartnerName, getUserKey, isUnlocked, listLetters, subscribeToSharedTable } from '../utils/sharedData';
 import { SanrioCornerDecoration } from '../components/SanrioDecorations';
 
-// Quick partner email mapping. Update these if you use different accounts.
-const NIKO_EMAIL = 'alfonsoaninias0527@gmail.com';
-const KIM_EMAIL = 'decastrokimfaith@gmail.com';
+const themes = [
+  { name: 'My Melody', tone: 'from-pink-100 to-rose-50 border-pink-200', button: 'from-pink-400 to-rose-500', paper: 'bg-pink-50 border-pink-200' },
+  { name: 'Kuromi', tone: 'from-purple-100 to-fuchsia-50 border-purple-200', button: 'from-purple-500 to-fuchsia-500', paper: 'bg-purple-50 border-purple-200' },
+  { name: 'Cinnamoroll', tone: 'from-sky-100 to-cyan-50 border-sky-200', button: 'from-sky-400 to-cyan-500', paper: 'bg-sky-50 border-sky-200' },
+  { name: 'Hello Kitty', tone: 'from-red-100 to-pink-50 border-red-200', button: 'from-red-400 to-pink-500', paper: 'bg-red-50 border-red-200' },
+];
 
-// Using client-side IndexedDB storage; no server API
+const types = [
+  { title: 'Anniversary Letter', helper: 'For milestones and memories.' },
+  { title: 'Appreciation Letter', helper: 'For thank-yous and soft moments.' },
+  { title: 'Good Morning Letter', helper: 'For a sweet start to the day.' },
+  { title: 'Future Letter', helper: 'Locked until the date you choose.' },
+];
 
 function Letters({ user }) {
-  const letterThemes = [
-    { id: 1, name: 'My Melody', emoji: '🎀', color: 'from-pink-400 to-pink-600' },
-    { id: 2, name: 'Kuromi', emoji: '😠', color: 'from-purple-400 to-purple-600' },
-    { id: 3, name: 'Cinnamoroll', emoji: '☁️', color: 'from-yellow-400 to-yellow-600' },
-    { id: 4, name: 'Hello Kitty', emoji: '😸', color: 'from-red-400 to-red-600' },
-  ];
-
-  const letterTypes = [
-    { title: 'Anniversary Letter', emoji: '💕' },
-    { title: 'Appreciation Letter', emoji: '🙏' },
-    { title: 'Good Morning Letter', emoji: '☀️' },
-    { title: 'Future Letter', emoji: '🔮' },
-  ];
-
-  const [selectedTheme, setSelectedTheme] = useState(letterThemes[0]);
-  const [selectedType, setSelectedType] = useState(letterTypes[0]);
+  const [selectedTheme, setSelectedTheme] = useState(themes[0]);
+  const [selectedType, setSelectedType] = useState(types[0]);
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
-  const [sentLetters, setSentLetters] = useState([]);
-  const [receivedLetters, setReceivedLetters] = useState([]);
+  const [unlockDate, setUnlockDate] = useState('');
+  const [letters, setLetters] = useState([]);
+  const [activeTab, setActiveTab] = useState('received');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const [importModalOpen, setImportModalOpen] = useState(false);
-  const [importToken, setImportToken] = useState('');
-  const [qrPreview, setQrPreview] = useState('');
-  const [partnerId, setPartnerId] = useState(null);
-  const [sendToPartner, setSendToPartner] = useState(false);
-  const [partnerEmail, setPartnerEmail] = useState('');
-  const [activeTab, setActiveTab] = useState('sent');
 
-  const fetchLetters = async () => {
+  const userKey = getUserKey(user);
+  const partnerName = getPartnerName(user);
+  const isFutureLetter = selectedType.title === 'Future Letter';
+
+  const fetchLetters = useCallback(async () => {
     try {
-      const list = await getLetters(user.id);
-      // local implementation: treat stored letters as sent letters
-      setSentLetters((list || []).reverse());
-      setReceivedLetters([]);
-      setPartnerId(null);
+      setLetters(await listLetters());
     } catch (err) {
       console.error(err);
-      setError('Failed to load letters.');
-    }
-  };
-
-  useEffect(() => {
-    if (user?.id) {
-      fetchLetters();
-      // keep local fetch, and also subscribe to Supabase realtime inserts
-      const interval = setInterval(fetchLetters, 3000);
-      let unsubscribe = null;
-      try {
-        unsubscribe = subscribeToTable('letters', (payload) => {
-          const row = payload?.new || payload?.record || payload;
-          if (!row) return;
-          // If this row is addressed to this user, add to received
-          if (String(row.sent_to_id) === String(user.id)) {
-            setReceivedLetters((prev) => [{ ...row }, ...prev]);
-          }
-          // If this row was created by this user, add to sent
-          if (String(row.created_by?.id) === String(user.id)) {
-            setSentLetters((prev) => [{ ...row }, ...prev]);
-          }
-        });
-      } catch (err) {
-        // Supabase not configured or subscribe failed — continue with local polling
-        // console.warn('Supabase subscribe failed', err);
-      }
-
-      return () => {
-        clearInterval(interval);
-        if (unsubscribe) unsubscribe();
-      };
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem('partnerEmail');
-      if (stored) setPartnerEmail(stored);
-    } catch (err) {
-      // ignore
+      setError('Unable to load shared letters. Run the latest Supabase schema first.');
     }
   }, []);
 
-  const handleImportToken = async () => {
-    setError('');
-    setSuccess('');
-    if (!importToken.trim()) {
-      setError('Paste a valid token or scan QR first.');
-      return;
-    }
-    try {
-      const decoded = decodeURIComponent(escape(atob(importToken.trim())));
-      const parsed = JSON.parse(decoded);
-      // avoid duplicates by subject + created_at
-      const existing = sentLetters.find((l) => l.subject === parsed.subject && l.created_at === parsed.created_at);
-      if (existing) {
-        setError('This letter is already in your saved letters.');
-        return;
-      }
-      // Save as a received letter (keep original created_by)
-      const createdBy = parsed.created_by || { id: parsed.user_id, name: parsed.created_by?.name || 'Partner' };
-      const saved = await saveLetter(user.id, {
-        theme: parsed.theme,
-        type: parsed.type,
-        subject: parsed.subject,
-        body: parsed.body,
-        send_to_partner: parsed.send_to_partner || 0,
-      }, createdBy);
-      if (createdBy.id !== user.id) {
-        setReceivedLetters((prev) => [{ ...saved }, ...prev]);
-      } else {
-        setSentLetters((prev) => [{ ...saved }, ...prev]);
-      }
-      setImportModalOpen(false);
-      setImportToken('');
-      setQrPreview('');
-      setSuccess('Imported letter from partner!');
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (err) {
-      console.error('Import failed', err);
-      setError('Invalid token.');
-    }
-  };
+  useEffect(() => {
+    fetchLetters();
+    const unsubscribe = subscribeToSharedTable('shared_letters', fetchLetters);
+    const interval = setInterval(fetchLetters, 6000);
+    return () => {
+      unsubscribe();
+      clearInterval(interval);
+    };
+  }, [fetchLetters]);
 
-  const handleSaveLetter = async (e) => {
-    e.preventDefault();
+  const sentLetters = useMemo(() => letters.filter((letter) => letter.sender_key === userKey), [letters, userKey]);
+  const receivedLetters = useMemo(() => letters.filter((letter) => letter.recipient_key === userKey), [letters, userKey]);
+
+  const handleSaveLetter = async (event) => {
+    event.preventDefault();
     setError('');
     setSuccess('');
 
-    if (!subject.trim() || !body.trim()) {
-      setError('Please fill in both subject and letter body.');
-      return;
-    }
-
-    if (sendToPartner && !partnerId) {
-      setError('You must be connected with a partner to send a letter.');
-      return;
-    }
+    if (!subject.trim() || !body.trim()) return setError('Please fill in both subject and letter body.');
+    if (isFutureLetter && !unlockDate) return setError('Choose the date when this future letter can be opened.');
 
     setLoading(true);
     try {
-      const payload = {
+      const saved = await createLetter(user, {
         theme: selectedTheme.name,
         type: selectedType.title,
         subject: subject.trim(),
         body: body.trim(),
-        send_to_partner: sendToPartner ? 1 : 0,
-      };
-      const saved = await saveLetter(user.id, payload, { id: user.id, name: user.name });
-      setSentLetters((prev) => [{ ...saved }, ...prev]);
-      // Try to mirror into Supabase for cross-device sync (graceful fallback)
-      try {
-        await insertRow('letters', {
-          theme: payload.theme,
-          type: payload.type,
-          subject: payload.subject,
-          body: payload.body,
-          send_to_partner: payload.send_to_partner,
-          sent_to_id: sendToPartner ? partnerId || null : null,
-          created_by: { id: user.id, name: user.name },
-        });
-      } catch (err) {
-        // ignore supabase errors — local save still works
-        // console.warn('Supabase insert failed', err);
-      }
-      // Optionally open default mail client to notify partner when sending
-      if (sendToPartner) {
-        try {
-          const partner = partnerEmail || ((user?.email && user.email === NIKO_EMAIL) || user?.id === 'niko' ? KIM_EMAIL : NIKO_EMAIL);
-          const mailto = `mailto:${partner}?subject=${encodeURIComponent(subject.trim())}&body=${encodeURIComponent(body.trim())}`;
-          window.open(mailto, '_blank');
-        } catch (err) {
-          // ignore mailto errors
-        }
-      }
+        unlock_date: isFutureLetter ? unlockDate : null,
+      });
+      setLetters((prev) => [saved, ...prev]);
       setSubject('');
       setBody('');
-      setSendToPartner(false);
-      setSuccess(sendToPartner ? '💌 Letter saved and sent to your partner!' : '💌 Letter saved!');
-      setTimeout(() => setSuccess(''), 3000);
+      setUnlockDate('');
+      setSuccess(isFutureLetter ? `Future letter saved for ${partnerName}.` : `Letter sent to ${partnerName}.`);
+      setTimeout(() => setSuccess(''), 3500);
     } catch (err) {
-      setError(err.response?.data?.error || 'Unable to save the letter.');
       console.error(err);
+      setError('Unable to save the letter. Check the shared_letters table and policies.');
     } finally {
       setLoading(false);
     }
@@ -205,338 +90,110 @@ function Letters({ user }) {
   const handleDelete = async (id) => {
     try {
       await deleteLetter(id);
-      setSentLetters((prev) => prev.filter((letter) => letter.id !== id));
+      setLetters((prev) => prev.filter((letter) => letter.id !== id));
     } catch (err) {
       console.error(err);
+      setError('Unable to delete this letter.');
     }
+  };
+
+  const renderLetter = (letter, canDelete = false) => {
+    const theme = themes.find((item) => item.name === letter.theme) || themes[0];
+    const unlocked = isUnlocked(letter);
+    return (
+      <motion.div key={letter.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`rounded-3xl border-2 ${theme.paper} p-6 shadow-sm`}>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <p className="text-xs uppercase tracking-[0.24em] text-purple-600 font-black mb-2">{letter.theme} / {letter.type}</p>
+            <p className="text-xs text-slate-500 mb-3">From {letter.sender_name} to {letter.recipient_name}</p>
+            {letter.unlock_date && !unlocked ? (
+              <div className="rounded-2xl border border-purple-200 bg-white/70 p-5 text-purple-700">
+                <h3 className="text-xl font-bold mb-2">Future letter locked</h3>
+                <p>This letter opens on {new Date(`${letter.unlock_date}T00:00:00`).toLocaleDateString()}.</p>
+              </div>
+            ) : (
+              <>
+                <h3 className="text-2xl font-bold text-gray-800 mb-3">{letter.subject}</h3>
+                <div className="text-gray-700 whitespace-pre-line leading-relaxed">{letter.body}</div>
+              </>
+            )}
+          </div>
+          {canDelete && (
+            <button type="button" onClick={() => handleDelete(letter.id)} className="rounded-2xl bg-white px-3 py-2 text-sm font-bold text-pink-600 border-2 border-pink-200 hover:bg-pink-50 transition">Delete</button>
+          )}
+        </div>
+      </motion.div>
+    );
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-lavender-50 p-6 pb-20">
       <div className="max-w-5xl mx-auto">
-        <motion.div
-          className="mb-8"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <Link to="/dashboard" className="text-pink-600 font-bold hover:underline text-lg mb-4 inline-block">
-            ← Back to Dashboard
-          </Link>
-          <p className="text-gray-600 text-lg">
-            {partnerId ? 'Share heartfelt letters with your partner 💝' : 'Connect with a partner to share letters 💝'}
-          </p>
+        <motion.div className="mb-8" initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
+          <Link to="/dashboard" className="text-pink-600 font-bold hover:underline text-lg mb-4 inline-block">Back to Dashboard</Link>
+          <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-600 to-purple-600">Love Letters</h1>
+          <p className="text-gray-600 text-lg mt-2">Write letters that sync between Niko and Kim.</p>
         </motion.div>
 
-        <motion.div
-          className="bg-white rounded-3xl shadow-lg p-8 border-3 border-pink-200 mb-8"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <h2 className="text-2xl font-bold text-pink-600 mb-6">Select a Theme 🎀</h2>
+        <motion.div className="bg-white rounded-3xl shadow-lg p-8 border-3 border-pink-200 mb-8" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <h2 className="text-2xl font-bold text-pink-600 mb-6">Select a Theme</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {letterThemes.map((theme) => (
-              <motion.button
-                key={theme.id}
-                type="button"
-                onClick={() => setSelectedTheme(theme)}
-                whileHover={{ scale: 1.03 }}
-                className={`rounded-2xl p-6 text-center transition shadow-md ${theme.color} text-white ${selectedTheme.id === theme.id ? 'ring-4 ring-pink-300' : 'hover:shadow-lg'}`}
-              >
-                <div className="text-4xl mb-2">{theme.emoji}</div>
+            {themes.map((theme) => (
+              <button key={theme.name} type="button" onClick={() => setSelectedTheme(theme)} className={`rounded-2xl p-6 text-center transition shadow-md bg-gradient-to-br ${theme.button} text-white ${selectedTheme.name === theme.name ? 'ring-4 ring-pink-300' : 'hover:shadow-lg'}`}>
                 <p className="font-bold">{theme.name}</p>
-              </motion.button>
-            ))}
-          </div>
-        </motion.div>
-
-        <div className="flex items-center gap-3 mt-4">
-          <button
-            type="button"
-            onClick={() => setImportModalOpen(true)}
-            className="rounded-2xl bg-white border-2 border-pink-200 px-4 py-2 text-pink-600 font-bold hover:bg-pink-50 transition"
-          >
-            📥 Import from Partner
-          </button>
-          <p className="text-sm text-gray-500">Or have your partner tap “Share” on a letter to copy a token/QR.</p>
-          <div className="ml-4 flex items-center gap-2">
-            <input
-              type="email"
-              value={partnerEmail}
-              onChange={(e) => setPartnerEmail(e.target.value)}
-              placeholder="Partner email (optional)"
-              className="rounded-2xl border-2 border-pink-200 px-3 py-2 bg-white"
-            />
-            <button
-                type="button"
-                onClick={() => { try { localStorage.setItem('partnerEmail', partnerEmail); } catch (e) {} }}
-                className="rounded-2xl bg-pink-600 text-white px-3 py-2 font-semibold"
-              >
-                Save
               </button>
-          </div>
-        </div>
-
-        <motion.div
-          className="bg-white rounded-3xl shadow-lg p-8 border-3 border-purple-200 mb-8"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <h2 className="text-2xl font-bold text-purple-600 mb-6">Choose a Letter Type 💕</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {letterTypes.map((letterType) => (
-              <motion.button
-                key={letterType.title}
-                type="button"
-                onClick={() => setSelectedType(letterType)}
-                whileHover={{ scale: 1.03 }}
-                className={`rounded-2xl p-6 text-center transition border-2 ${selectedType.title === letterType.title ? 'border-purple-500 bg-purple-100 shadow-lg' : 'border-purple-200 bg-purple-50 hover:shadow-md'}`}
-              >
-                <div className="text-3xl mb-2">{letterType.emoji}</div>
-                <p className="font-bold text-gray-800">{letterType.title}</p>
-              </motion.button>
             ))}
           </div>
         </motion.div>
 
-        <motion.div
-          className="bg-white rounded-3xl shadow-lg p-8 border-3 border-sky-200 mb-8"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <h2 className="text-2xl font-bold text-sky-600 mb-6">Write Your Letter ✍️</h2>
+        <motion.div className="bg-white rounded-3xl shadow-lg p-8 border-3 border-purple-200 mb-8" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <h2 className="text-2xl font-bold text-purple-600 mb-6">Choose a Letter Type</h2>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {types.map((letterType) => (
+              <button key={letterType.title} type="button" onClick={() => setSelectedType(letterType)} className={`rounded-2xl p-6 text-center transition border-2 ${selectedType.title === letterType.title ? 'border-purple-500 bg-purple-100 shadow-lg' : 'border-purple-200 bg-purple-50 hover:shadow-md'}`}>
+                <p className="font-bold text-gray-800">{letterType.title}</p>
+                <p className="text-xs text-slate-500 mt-2">{letterType.helper}</p>
+              </button>
+            ))}
+          </div>
+        </motion.div>
+
+        <motion.div className={`rounded-3xl shadow-lg p-8 border-3 mb-8 bg-gradient-to-br ${selectedTheme.tone}`} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <h2 className="text-2xl font-bold text-sky-700 mb-6">Write to {partnerName}</h2>
           {error && <div className="mb-4 rounded-2xl bg-red-50 border-l-4 border-red-400 p-4 text-red-700">{error}</div>}
           {success && <div className="mb-4 rounded-2xl bg-green-50 border-l-4 border-green-400 p-4 text-green-700">{success}</div>}
           <form onSubmit={handleSaveLetter} className="space-y-6">
-            <div>
-              <label className="block text-gray-700 font-bold mb-2">Subject</label>
-              <input
-                type="text"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                className="w-full rounded-3xl border-2 border-purple-200 px-4 py-3 bg-purple-50 focus:border-purple-400 focus:outline-none"
-                placeholder="My love note for you..."
-              />
-            </div>
-            <div>
-              <label className="block text-gray-700 font-bold mb-2">Letter Body</label>
-              <textarea
-                rows={6}
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                className="w-full rounded-3xl border-2 border-purple-200 px-4 py-4 bg-purple-50 focus:border-purple-400 focus:outline-none"
-                placeholder="Write something sweet and meaningful..."
-              />
-            </div>
-            {partnerId && (
-              <label className="flex items-center gap-3 cursor-pointer bg-pink-50 p-4 rounded-2xl border-2 border-pink-200">
-                <input
-                  type="checkbox"
-                  checked={sendToPartner}
-                  onChange={(e) => setSendToPartner(e.target.checked)}
-                  className="w-5 h-5 accent-pink-600 cursor-pointer"
-                />
-                <span className="font-semibold text-gray-700">📮 Send this letter to my partner</span>
-              </label>
+            <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} className="w-full rounded-3xl border-2 border-white/70 px-4 py-3 bg-white/80 focus:outline-none" placeholder="Subject" />
+            {isFutureLetter && (
+              <div>
+                <label className="block text-gray-700 font-bold mb-2">Open this future letter on</label>
+                <input type="date" value={unlockDate} min={new Date().toISOString().slice(0, 10)} onChange={(e) => setUnlockDate(e.target.value)} className="w-full rounded-3xl border-2 border-white/70 px-4 py-3 bg-white/80 focus:outline-none" />
+              </div>
             )}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-3xl bg-gradient-to-r from-pink-500 via-purple-500 to-lavender-500 text-white font-bold py-3 hover:opacity-95 transition disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Saving...' : sendToPartner ? '📮 Save & Send Letter' : '💾 Save Letter'}
+            <textarea rows={8} value={body} onChange={(e) => setBody(e.target.value)} className="w-full rounded-3xl border-2 border-white/70 px-4 py-4 bg-white/80 focus:outline-none" placeholder="Write something sweet and meaningful..." />
+            <button type="submit" disabled={loading} className="w-full rounded-3xl bg-gradient-to-r from-pink-500 via-purple-500 to-fuchsia-500 text-white font-bold py-3 hover:opacity-95 transition disabled:opacity-60">
+              {loading ? 'Saving...' : `Send to ${partnerName}`}
             </button>
           </form>
         </motion.div>
 
-        {/* Tabs for Sent/Received */}
         <div className="flex gap-4 mb-8">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            onClick={() => setActiveTab('sent')}
-            className={`flex-1 rounded-2xl py-3 font-bold transition ${
-              activeTab === 'sent'
-                ? 'bg-gradient-to-r from-pink-500 to-pink-600 text-white shadow-lg'
-                : 'bg-white border-2 border-pink-200 text-pink-600 hover:border-pink-400'
-            }`}
-          >
-            📝 My Letters ({sentLetters.length})
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            onClick={() => setActiveTab('received')}
-            disabled={!partnerId}
-            className={`flex-1 rounded-2xl py-3 font-bold transition ${
-              activeTab === 'received'
-                ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg'
-                : partnerId
-                ? 'bg-white border-2 border-purple-200 text-purple-600 hover:border-purple-400'
-                : 'bg-gray-100 border-2 border-gray-300 text-gray-400 cursor-not-allowed'
-            }`}
-          >
-            💌 From Partner ({receivedLetters.length})
-          </motion.button>
+          <button onClick={() => setActiveTab('received')} className={`flex-1 rounded-2xl py-3 font-bold transition ${activeTab === 'received' ? 'bg-purple-600 text-white shadow-lg' : 'bg-white border-2 border-purple-200 text-purple-600'}`}>From {partnerName} ({receivedLetters.length})</button>
+          <button onClick={() => setActiveTab('sent')} className={`flex-1 rounded-2xl py-3 font-bold transition ${activeTab === 'sent' ? 'bg-pink-600 text-white shadow-lg' : 'bg-white border-2 border-pink-200 text-pink-600'}`}>My Letters ({sentLetters.length})</button>
         </div>
 
-        {/* Sent Letters Tab */}
-        {activeTab === 'sent' && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-gradient-to-br from-white via-pink-50 to-purple-50 rounded-3xl shadow-lg p-8 border-3 border-pink-200 relative"
-          >
-            <SanrioCornerDecoration position="top-left" size="md" />
-            <SanrioCornerDecoration position="top-right" size="md" />
-            
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-pink-600">📝 My Saved Letters</h2>
-              <span className="text-sm text-gray-500 bg-pink-100 px-3 py-1 rounded-full font-semibold">{sentLetters.length} saved</span>
-            </div>
-            
-            {sentLetters.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="text-5xl mb-3">💝</div>
-                <p className="text-gray-500 text-lg">No letters saved yet. Create one above!</p>
-              </div>
-            ) : (
-              <div className="grid gap-5">
-                {sentLetters.map((letter, index) => (
-                  <motion.div
-                    key={letter.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="group relative"
-                  >
-                    <div className="absolute -top-6 left-4 text-2xl opacity-60 group-hover:opacity-100 transition">
-                      🎀
-                    </div>
-                    <div className="rounded-3xl border-3 border-pink-200 bg-gradient-to-br from-white to-pink-50 p-6 shadow-sm hover:shadow-md hover:border-pink-300 transition">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <p className="text-xs uppercase tracking-[0.3em] text-pink-600 font-black mb-2">
-                            {letter.theme} <span className="text-purple-600">•</span> {letter.type}
-                          </p>
-                          {letter.created_by && (
-                            <p className="text-xs text-purple-600 font-semibold mb-2">✍️ From {letter.created_by.name}</p>
-                          )}
-                          {letter.sent_to_id && (
-                            <p className="text-xs text-purple-600 font-semibold mb-2">📮 Sent to partner</p>
-                          )}
-                          <h3 className="text-xl font-bold text-gray-800 mb-3">{letter.subject}</h3>
-                          <div className="text-gray-700 whitespace-pre-line text-sm leading-relaxed max-h-32 overflow-hidden">
-                            {letter.body}
-                          </div>
-                        </div>
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          onClick={() => handleDelete(letter.id)}
-                          className="rounded-2xl bg-white px-3 py-2 text-sm font-bold text-pink-600 border-2 border-pink-200 hover:bg-pink-50 hover:border-pink-400 transition flex-shrink-0"
-                        >
-                          🗑️ Delete
-                        </motion.button>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            )}
-            
-            <SanrioCornerDecoration position="bottom-left" size="md" />
-            <SanrioCornerDecoration position="bottom-right" size="md" />
-          </motion.div>
-        )}
-
-        {/* Import Modal */}
-        {importModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="w-full max-w-2xl bg-white rounded-2xl p-6 shadow-2xl">
-              <h3 className="text-xl font-bold mb-3">Import Letter from Partner</h3>
-              <p className="text-sm text-gray-600 mb-3">Paste the share token you received (or scan the QR on your partner's device).</p>
-              <textarea
-                value={importToken}
-                onChange={(e) => setImportToken(e.target.value)}
-                rows={6}
-                className="w-full rounded-md border px-3 py-2 mb-3"
-                placeholder="Paste token here"
-              />
-              {qrPreview && (
-                <div className="mb-3">
-                  <p className="text-sm text-gray-600 mb-2">QR Preview (optional):</p>
-                  <img src={qrPreview} alt="qr preview" className="h-40 w-40" />
-                </div>
-              )}
-              <div className="flex items-center gap-3 justify-end">
-                <button onClick={() => { setImportModalOpen(false); setImportToken(''); setQrPreview(''); }} className="px-4 py-2 rounded-2xl border">Cancel</button>
-                <button onClick={handleImportToken} className="px-4 py-2 rounded-2xl bg-pink-600 text-white">Import</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Received Letters Tab */}
-        {activeTab === 'received' && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-gradient-to-br from-white via-purple-50 to-pink-50 rounded-3xl shadow-lg p-8 border-3 border-purple-200 relative"
-          >
-            <SanrioCornerDecoration position="top-left" size="md" />
-            <SanrioCornerDecoration position="top-right" size="md" />
-            
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-purple-600">💌 Love Letters from Your Partner</h2>
-              <span className="text-sm text-gray-500 bg-purple-100 px-3 py-1 rounded-full font-semibold">{receivedLetters.length} received</span>
-            </div>
-            
-            {!partnerId ? (
-              <div className="text-center py-8">
-                <div className="text-5xl mb-3">💔</div>
-                <p className="text-gray-500 text-lg">Connect with a partner to receive letters!</p>
-              </div>
-            ) : receivedLetters.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="text-5xl mb-3">📭</div>
-                <p className="text-gray-500 text-lg">No letters yet. Your partner will send you love notes here!</p>
-              </div>
-            ) : (
-              <div className="grid gap-5">
-                {receivedLetters.map((letter, index) => (
-                  <motion.div
-                    key={letter.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="group relative"
-                  >
-                    <div className="absolute -top-6 right-4 text-2xl opacity-60 group-hover:opacity-100 transition">
-                      💕
-                    </div>
-                    <div className="rounded-3xl border-3 border-purple-300 bg-gradient-to-br from-white to-purple-50 p-6 shadow-sm hover:shadow-lg hover:border-purple-400 transition">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <p className="text-xs uppercase tracking-[0.3em] text-purple-600 font-black mb-2">
-                            {letter.theme} <span className="text-pink-600">•</span> {letter.type}
-                          </p>
-                          {!letter.read_by_recipient && (
-                            <p className="text-xs text-pink-600 font-semibold mb-2">✨ NEW</p>
-                          )}
-                          <h3 className="text-xl font-bold text-gray-800 mb-3">{letter.subject}</h3>
-                          <div className="text-gray-700 whitespace-pre-line text-sm leading-relaxed">
-                            {letter.body}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            )}
-            
-            <SanrioCornerDecoration position="bottom-left" size="md" />
-            <SanrioCornerDecoration position="bottom-right" size="md" />
-          </motion.div>
-        )}
+        <motion.div className="bg-gradient-to-br from-white via-pink-50 to-purple-50 rounded-3xl shadow-lg p-8 border-3 border-pink-200 relative" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <SanrioCornerDecoration position="top-left" size="md" />
+          <SanrioCornerDecoration position="top-right" size="md" />
+          <h2 className="text-2xl font-bold text-pink-600 mb-6">{activeTab === 'received' ? `Letters from ${partnerName}` : 'Letters I Sent'}</h2>
+          {(activeTab === 'received' ? receivedLetters : sentLetters).length === 0 ? (
+            <p className="text-gray-500 text-lg">No letters here yet.</p>
+          ) : (
+            <div className="grid gap-5">{(activeTab === 'received' ? receivedLetters : sentLetters).map((letter) => renderLetter(letter, activeTab === 'sent'))}</div>
+          )}
+          <SanrioCornerDecoration position="bottom-left" size="md" />
+          <SanrioCornerDecoration position="bottom-right" size="md" />
+        </motion.div>
       </div>
     </div>
   );

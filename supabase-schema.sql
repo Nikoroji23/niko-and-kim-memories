@@ -56,6 +56,51 @@ create index if not exists idx_shared_memories_couple_created on public.shared_m
 create index if not exists idx_shared_memory_media_memory on public.shared_memory_media(memory_id);
 create index if not exists idx_shared_memory_media_couple_created on public.shared_memory_media(couple_id, created_at desc);
 
+create table if not exists public.shared_letters (
+  id uuid primary key default gen_random_uuid(),
+  couple_id text not null default 'niko-kim',
+  sender_key text not null check (sender_key in ('niko', 'kim')),
+  sender_name text not null,
+  recipient_key text not null check (recipient_key in ('niko', 'kim')),
+  recipient_name text not null,
+  theme text not null,
+  type text not null,
+  subject text not null,
+  body text not null,
+  unlock_date date,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.shared_daily_answers (
+  id uuid primary key default gen_random_uuid(),
+  couple_id text not null default 'niko-kim',
+  user_key text not null check (user_key in ('niko', 'kim')),
+  user_name text not null,
+  question_text text not null,
+  answer text not null,
+  answer_date date not null,
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  unique (couple_id, user_key, answer_date)
+);
+
+create table if not exists public.shared_feelings (
+  id uuid primary key default gen_random_uuid(),
+  couple_id text not null default 'niko-kim',
+  user_key text not null check (user_key in ('niko', 'kim')),
+  user_name text not null,
+  feeling text not null,
+  feeling_date date not null,
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  unique (couple_id, user_key, feeling_date)
+);
+
+create index if not exists idx_shared_letters_couple_created on public.shared_letters(couple_id, created_at desc);
+create index if not exists idx_shared_letters_recipient on public.shared_letters(couple_id, recipient_key, unlock_date);
+create index if not exists idx_shared_daily_answers_couple_date on public.shared_daily_answers(couple_id, answer_date desc, created_at desc);
+create index if not exists idx_shared_feelings_couple_date on public.shared_feelings(couple_id, feeling_date desc);
+
 -- Storage bucket for uploaded photos/videos.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (
@@ -83,6 +128,9 @@ alter table public.shared_messages enable row level security;
 alter table public.shared_plans enable row level security;
 alter table public.shared_memories enable row level security;
 alter table public.shared_memory_media enable row level security;
+alter table public.shared_letters enable row level security;
+alter table public.shared_daily_answers enable row level security;
+alter table public.shared_feelings enable row level security;
 
 -- Recreate policies so rerunning this file is safe.
 drop policy if exists "shared messages public read" on public.shared_messages;
@@ -108,6 +156,27 @@ drop policy if exists "shared media public read" on public.shared_memory_media;
 drop policy if exists "shared media public insert" on public.shared_memory_media;
 create policy "shared media public read" on public.shared_memory_media for select using (couple_id = 'niko-kim');
 create policy "shared media public insert" on public.shared_memory_media for insert with check (couple_id = 'niko-kim');
+
+drop policy if exists "shared letters public read" on public.shared_letters;
+drop policy if exists "shared letters public insert" on public.shared_letters;
+drop policy if exists "shared letters public delete" on public.shared_letters;
+create policy "shared letters public read" on public.shared_letters for select using (couple_id = 'niko-kim');
+create policy "shared letters public insert" on public.shared_letters for insert with check (couple_id = 'niko-kim');
+create policy "shared letters public delete" on public.shared_letters for delete using (couple_id = 'niko-kim');
+
+drop policy if exists "shared daily answers public read" on public.shared_daily_answers;
+drop policy if exists "shared daily answers public insert" on public.shared_daily_answers;
+drop policy if exists "shared daily answers public update" on public.shared_daily_answers;
+create policy "shared daily answers public read" on public.shared_daily_answers for select using (couple_id = 'niko-kim');
+create policy "shared daily answers public insert" on public.shared_daily_answers for insert with check (couple_id = 'niko-kim');
+create policy "shared daily answers public update" on public.shared_daily_answers for update using (couple_id = 'niko-kim') with check (couple_id = 'niko-kim');
+
+drop policy if exists "shared feelings public read" on public.shared_feelings;
+drop policy if exists "shared feelings public insert" on public.shared_feelings;
+drop policy if exists "shared feelings public update" on public.shared_feelings;
+create policy "shared feelings public read" on public.shared_feelings for select using (couple_id = 'niko-kim');
+create policy "shared feelings public insert" on public.shared_feelings for insert with check (couple_id = 'niko-kim');
+create policy "shared feelings public update" on public.shared_feelings for update using (couple_id = 'niko-kim') with check (couple_id = 'niko-kim');
 
 -- Storage policies for the public media bucket.
 drop policy if exists "media bucket public read" on storage.objects;
