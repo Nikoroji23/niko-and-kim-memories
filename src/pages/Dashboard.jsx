@@ -4,13 +4,25 @@ import { motion } from 'framer-motion';
 import { getDashboardStats, getUserKey, saveFeeling, subscribeToSharedTable } from '../utils/sharedData';
 
 function relationshipAge() {
-  const start = new Date('2024-01-01T00:00:00');
+  const startYear = 2022;
+  const startMonth = 10;
+  const startDay = 23;
   const now = new Date();
-  const diffDays = Math.max(0, Math.floor((now - start) / 86400000));
-  const years = Math.floor(diffDays / 365);
-  const months = Math.floor((diffDays % 365) / 30);
-  const remaining_days = (diffDays % 365) % 30;
-  return { years, months, remaining_days };
+  let years = now.getFullYear() - startYear;
+  let months = now.getMonth() - startMonth;
+  let remaining_days = now.getDate() - startDay;
+
+  if (remaining_days < 0) {
+    months -= 1;
+    remaining_days += new Date(now.getFullYear(), now.getMonth(), 0).getDate();
+  }
+
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+
+  return { years: Math.max(0, years), months: Math.max(0, months), remaining_days: Math.max(0, remaining_days) };
 }
 
 function Dashboard({ user, onSwitchUser }) {
@@ -94,6 +106,7 @@ function Dashboard({ user, onSwitchUser }) {
             <div>
               <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-700 to-purple-700 mb-3">Niko & Kim Memories</h1>
               <p className="text-white text-lg md:text-xl font-semibold drop-shadow">Together for: {relationship.years}y {relationship.months}m {relationship.remaining_days}d</p>
+              <p className="text-white/90 text-sm md:text-base font-semibold drop-shadow mt-1">4 years on November 23, 2026</p>
             </div>
             <div className="flex items-center gap-4">
               <label className="text-white font-bold">You are:</label>
