@@ -190,3 +190,6 @@ create policy "media bucket public update" on storage.objects for update using (
 -- In Supabase Dashboard, go to Database > Replication and enable realtime for:
 -- shared_messages, shared_plans, shared_memories, shared_memory_media.
 -- The app also polls, so it works even before realtime is enabled.
+
+-- Refresh Supabase/PostgREST schema cache after creating new tables.
+notify pgrst, 'reload schema';
