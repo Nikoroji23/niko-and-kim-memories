@@ -20,8 +20,16 @@ function App() {
   };
 
   const [user, setUser] = useState(() => {
-    const stored = localStorage.getItem('user');
-    return stored ? JSON.parse(stored) : defaultUsers.niko;
+    try {
+      const stored = localStorage.getItem('user');
+      if (!stored) return defaultUsers.niko;
+
+      const parsed = JSON.parse(stored);
+      return parsed?.id && parsed?.name ? parsed : defaultUsers.niko;
+    } catch (error) {
+      localStorage.removeItem('user');
+      return defaultUsers.niko;
+    }
   });
   const [loading, setLoading] = useState(false);
 
@@ -91,3 +99,4 @@ function App() {
 }
 
 export default App;
+

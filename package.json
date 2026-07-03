@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "A private place where Niko & Kim's love story lives forever",
   "private": true,
+  "homepage": ".",
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
